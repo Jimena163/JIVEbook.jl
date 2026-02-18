@@ -131,47 +131,6 @@ export function createViewMenu(timeoutValue) {
         createMenuItem("Change Pixel Size", function () {}),
     ]
 
-    // 📈 Profiles & Plots
-    const profileItems = [
-        createMenuItem("Line Profile", async function () {
-            const sel_im = getVarName("sel_im")
-            const x1 = getVarName("x1")
-            const y1 = getVarName("y1")
-            const x2 = getVarName("x2")
-            const y2 = getVarName("y2")
-            
-            createMDCellWithUI(
-                "Line Intensity Profile",
-                `
-1. Select image: $(@bind ${sel_im} Select([nothing, image_keys...]))
-2. Start X: $(@bind ${x1} NumberField(1:10000, default=100))
-3. Start Y: $(@bind ${y1} NumberField(1:10000, default=100))
-4. End X: $(@bind ${x2} NumberField(1:10000, default=200))
-5. End Y: $(@bind ${y2} NumberField(1:10000, default=200))
-            `
-            )
-        
-            await resolveAfterTimeout(timeoutValue * 2)
-    
-            createCellWithCode(`
-if isnothing(${sel_im})
-    print("Select an image")
-else
-    JIVECore.Visualize.plotLine(image_data[${sel_im}],(${x1}, ${y1}),(${x2}, ${y2}),legend=true)
-end`)
-
-            await resolveAfterTimeout(timeoutValue * 2)
-
-            createCellWithCode(`
-if !isnothing(${sel_im})
-    img = image_data[${sel_im}]
-    img_line = copy(img)
-    
-    JIVECore.Visualize.gif(JIVECore.Draw.draw_line(img_line,(${x1}, ${y1}),(${x2}, ${y2}),5,value=1))
-    
-end`) 
-        }),
-    ]   
 
     // Add accordions to menu
     accView.appendChild(createAccordion("👁️ Display", viewDisplayItems, "display"))
@@ -180,7 +139,7 @@ end`)
     accView.appendChild(createAccordion("🪟 Slice", sliceItems, "slice"))
     accView.appendChild(createAccordion("🏷️ Overlays", overlayItems, "overlay"))
     accView.appendChild(createAccordion("📐 Axes", scaleItems, "axes"))
-    accView.appendChild(createAccordion("📈 Profiles", profileItems, "profiles"))
+
     
 
     // Add a line at the end
