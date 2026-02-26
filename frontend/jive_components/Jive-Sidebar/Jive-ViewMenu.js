@@ -95,7 +95,65 @@ export function createViewMenu(timeoutValue) {
         createMenuItem("Brightness Slider", function () {}),
         createMenuItem("Gamma Adjustment", function () {}),
         createMenuItem("Histogram View", function () {}),
-    ]
+        createMenuItem("Calibrate Image", async function () {
+            const sel_im = getVarName("sel_im");
+        
+            // 1️⃣ Selección de imagen ya cargada
+            createMDCellWithUI(
+                "Calibrate Parameters",
+                `
+1. Select Image
+$(@bind ${sel_im} Select([nothing, image_keys...]))
+        
+2. Eje horizontal
+$(@bind h_val NumberField(0:0.001:10, default=0.001))
+$(@bind h_unit Select(["mm", "μm"]))
+        
+3. Eje vertical
+$(@bind v_val NumberField(0:0.1:10, default=1))
+$(@bind v_unit Select(["mm", "μm"]))
+        
+4. Eje temporal
+$(@bind t_val NumberField(0:1:100, default=1))
+$(@bind t_unit Select(["s", "ms"]))
+            `
+            );
+        
+            await resolveAfterTimeout(300);
+        
+            // 2️⃣ Celda reactiva de calibración
+            createCellWithCode(`
+        using Unitful
+        
+        img2 = nothing
+        if !isnothing(${sel_im})
+            v_unit_val = v_unit == "mm" ? Unitful.mm : Unitful.μm
+            h_unit_val = h_unit == "mm" ? Unitful.mm : Unitful.μm
+            t_unit_val = t_unit == "s" ? Unitful.s : Unitful.ms
+        
+            img2 = JIVECore.Data.imCalibrate(
+                image_data[${sel_im}];
+                v = v_val * v_unit_val,
+                h = h_val * h_unit_val,
+                time = t_val * t_unit_val
+            )
+        end
+        
+        nothing  # Evita mostrar img2 automáticamente
+            `);
+        
+            await resolveAfterTimeout(300);
+        
+            // 3️⃣ Celda reactiva para mostrar info de la imagen calibrada
+            createCellWithCode(`
+        if !isnothing(img2)
+            JIVECore.Files.showInfo(img2)
+        end
+            `);
+        }),
+              
+        
+    ]        
 
     // 🌈 Colormap & Channels
     const colormapItems = [
@@ -125,7 +183,87 @@ export function createViewMenu(timeoutValue) {
 
     // 📐 Scale & Axes
     const scaleItems = [
-        createMenuItem("Show Scale Bar", function () {}),
+        createMenuItem("Show Scale Bar", async function () {
+            const ts_channels = getVarName("ts_channels");
+            const ts_fontsize = getVarName("ts_fontsize");
+            const ts_corner = getVarName("ts_corner");
+        
+            const sb1_size = getVarName("sb1_size");
+            const sb1_fontsize = getVarName("sb1_fontsize");
+            const sb1_corner = getVarName("sb1_corner");
+            const sb1_channels = getVarName("sb1_channels");
+        
+            const sb2_size = getVarName("sb2_size");
+            const sb2_fontsize = getVarName("sb2_fontsize");
+            const sb2_corner = getVarName("sb2_corner");
+            const sb2_channels = getVarName("sb2_channels");
+        
+            // Panel de parámetros
+            createMDCellWithUI(
+                "Overlays on Calibrated Image",
+                `      
+1. Scalebar horizontal
+$(@bind sb1_size NumberField(0.001:0.001:10, default=0.05))
+        
+2. Scalebar vertical
+$(@bind sb2_size NumberField(1:1:100, default=50))
+
+                `
+            );
+        
+            await resolveAfterTimeout(300);
+        
+            // Celda que dibuja los overlays
+            createCellWithCode(`
+            # Crear una copia de la imagen calibrada
+            img2_copy = copy(img2)
+
+        
+        if !isnothing(img2_copy)
+            # Timestamp
+            JIVECore.Draw.timestamp!(
+                img2,
+                channels=[:h,:v,:time],
+                fontsize=0.06,
+                corner=:topright
+            )
+        
+            # Scalebar horizontal
+            JIVECore.Draw.scalebar!(
+                img2_copy,
+                sb1_size * Unitful.mm,
+                fontsize=0.04,
+                channels=[:h,:v],
+                corner=:bottomleft,
+                show_text=true
+            )
+        
+            # Scalebar vertical
+            JIVECore.Draw.scalebar!(
+                img2_copy,
+                sb2_size * Unitful.mm,
+                direction=:v,
+                fontsize=0.04,
+                fcolor=(1,1,1),
+                channels=[:h,:v],
+                corner=:bottomleft,
+                show_text=true
+            )
+        end
+        
+        nothing
+            `);
+
+            await resolveAfterTimeout(300);
+
+            createCellWithCode(`
+        if !isnothing(img2_copy)
+            JIVECore.Visualize.mosaicview(img2_copy[time=1:3], nrow=1)
+        end
+            `);
+            
+        }),
+        
         createMenuItem("Set Units", function () {}),
         createMenuItem("Toggle Axes", function () {}),
         createMenuItem("Change Pixel Size", function () {}),
