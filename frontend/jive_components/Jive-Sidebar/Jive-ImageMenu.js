@@ -389,6 +389,7 @@ $(@bind ${lut_fontsize} Slider(0.01:0.001:0.1, default=0.03))
         }),
     ]
 
+    // Submenu channels
     const channelItems = [
         createMenuItem("Split Channels", async function () {
     
@@ -546,10 +547,78 @@ $(@bind ${ch3} Select([:r,:g,:b,:m,:y,:c,:gray]))
         createMenuItem("Extract Channel", function () {}),
     ]
 
+    const NDTools = [
+        createMenuItem("Maximum Intensity Projection", async function () {
+
+            const sel_im     = getVarName("proj_im");
+            const sel_dim    = getVarName("proj_dim");
+            const sel_method = getVarName("proj_method");
+            const proj_key   = getVarName("proj_key");
+            const show_proj  = getVarName("show_proj");
+        
+            createMDCellWithUI(
+                "Maximum Intensity Projection (ND Images)",
+                `
+Select image:
+$(@bind ${sel_im} Select([nothing, image_keys...]))
+        
+Projection dimension (axis or index):
+$(@bind ${sel_dim} Select([1, 2, 3, :x, :y, :z, :t, :c], default=:z))
+        
+Method:
+$(@bind ${sel_method} Select([:max, :mean, :sum, :std, :median], default=:max))
+                `
+            );
+        
+            await resolveAfterTimeout(300);
+        
+            createCellWithCode(`
+        
+        ${proj_key} = nothing
+        
+        if !isnothing(${sel_im}) && !isnothing(${sel_dim})
+        
+            img = image_data[${sel_im}]
+        
+            # 1 Projection (Symbol version)
+            projected = JIVECore.Data.imProject(
+                img,
+                ${sel_dim};
+                method=${sel_method}
+            )
+        
+            # 4 Store
+            base_name = string(${sel_im}, "_proj_", ${sel_method})
+            key = JIVECore.Data.keyCheck(image_data, base_name)
+        
+            image_data[key] = final_img
+        
+            if !(key in image_keys)
+                push!(image_keys, key)
+            end
+        
+            global ${proj_key}
+            ${proj_key} = key
+            println("Projection stored as ", key)
+        
+        end
+        
+        nothing
+            `);
+        
+        }),
+        createMenuItem("Merge", function () {}),
+        createMenuItem("Insert Slice", function () {}),
+        createMenuItem("Delete Slice", function () {}),
+        createMenuItem("Join", function () {}),
+    
+    ]
+
     // Add accordions to menu
     accImage.appendChild(createAccordion("Types", typesItems, "Types"))
     accImage.appendChild(createAccordion("Lookup Tables", tableItems, "Lookup Tables"))
     accImage.appendChild(createAccordion("Channel Tools", channelItems, "Channel Tools"))
+    accImage.appendChild(createAccordion("ND Tools", NDTools, "ND Tools"))
     // Add a line at the end
     const hr = document.createElement("hr")
     hr.style.margin = "12px 0 0 0"
