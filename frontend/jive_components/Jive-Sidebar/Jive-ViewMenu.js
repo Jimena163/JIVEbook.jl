@@ -80,6 +80,59 @@ export function createViewMenu(timeoutValue) {
 
     // 👁️ View / Display
     const viewDisplayItems = [
+        createMenuItem("Mosaic View", async function () {
+
+            const sel_imgs = getVarName("mosaic_imgs");
+            const nrow = getVarName("mosaic_nrow");
+            const ncol = getVarName("mosaic_ncol");
+        
+            ////////////////////////////////////
+            // UI
+            ////////////////////////////////////
+        
+            createMDCellWithUI(
+                "Mosaic Image Viewer",
+                `
+Images to display:
+$(@bind ${sel_imgs} MultiSelect(image_keys))
+        
+Rows:
+$(@bind ${nrow} NumberField(1:10, default=1))
+        
+Columns:
+$(@bind ${ncol} NumberField(1:10, default=1))
+                `
+            );
+        
+            await resolveAfterTimeout(300);
+        
+            ////////////////////////////////////
+            // Visualization
+            ////////////////////////////////////
+        
+            createCellWithCode(`
+        
+        let
+        
+        if !isnothing(${sel_imgs}) && length(${sel_imgs}) > 0
+        
+            imgs = map(k -> image_data[k], ${sel_imgs})
+        
+            println("Displaying mosaic with ", length(imgs), " images")
+        
+            JIVECore.Visualize.mosaicview(
+                imgs...;
+                nrow=${nrow},
+                ncol=${ncol}
+            )
+        
+        end
+        
+        end
+        
+        `);
+        
+        }),
         createMenuItem("Zoom In", function () {}),
         createMenuItem("Zoom Out", function () {}),
         createMenuItem("Reset Zoom", function () {}),

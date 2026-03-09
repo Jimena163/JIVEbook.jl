@@ -80,10 +80,255 @@ export function createMeasureMenu(timeoutValue) {
 
     // 📈 Intensity & Stats
     const intensityItems = [
-        createMenuItem("Mean / Median / Std", function () {}),
-        createMenuItem("Min / Max", function () {}),
-        createMenuItem("Intensity Histogram", function () {}),
-        createMenuItem("Pixel Value Sampling", function () {}),
+
+////////////////////////
+// MEASURE IMAGE
+////////////////////////
+createMenuItem("Measure Image", async function () {
+
+    const sel_im = getVarName("measure_im");
+
+    createMDCellWithUI(
+        "Measure Image",
+        `
+Select image:
+$(@bind ${sel_im} Select([nothing, image_keys...]))
+        `
+    );
+
+    await resolveAfterTimeout(300);
+
+    createCellWithCode(`
+
+let
+
+global results_table
+
+if !isnothing(${sel_im})
+
+    img = image_data[${sel_im}]
+
+    if isnothing(results_table[])
+        results_table[] = JIVECore.Analyze.stats_table(img)
+    else
+        results_table[] = JIVECore.Analyze.stats_table(img, df=results_table[])
+    end
+
+end
+
+results_table[]
+
+end
+
+`);
+
+}),
+
+////////////////////////
+// MEASURE WITH THRESHOLD
+////////////////////////
+
+createMenuItem("Measure with Threshold", async function () {
+
+    const sel_im = getVarName("measure_thr_im");
+    const threshold = getVarName("measure_thr_method");
+
+    createMDCellWithUI(
+        "Measure with Threshold",
+        `
+Select image:
+$(@bind ${sel_im} Select([nothing, image_keys...]))
+
+Threshold:
+$(@bind ${threshold} Select(["auto","otsu"]))
+        `
+    );
+
+    await resolveAfterTimeout(300);
+
+    createCellWithCode(`
+
+let
+
+global results_table
+
+if !isnothing(${sel_im})
+
+    img = image_data[${sel_im}]
+
+    if isnothing(results_table[])
+        results_table[] = JIVECore.Analyze.stats_table(img, threshold=${threshold})
+    else
+        results_table[] = JIVECore.Analyze.stats_table(img, threshold=${threshold}, df=results_table[])
+    end
+
+end
+
+results_table[]
+
+end
+
+`);
+
+}),
+
+////////////////////////
+// ANALYZE PARTICLES
+////////////////////////
+
+            createMenuItem("Analyze Particles", async function () {
+
+                const label_im = getVarName("label_image");
+                const intensity_im = getVarName("intensity_image");
+
+                createMDCellWithUI(
+                    "Analyze Particles",
+                    `
+Label image:
+$(@bind ${label_im} Select([nothing, image_keys...]))
+
+Intensity image (optional):
+$(@bind ${intensity_im} Select([nothing, image_keys...]))
+                    `
+                );
+
+                await resolveAfterTimeout(300);
+
+                createCellWithCode(`
+
+            let
+
+                if !isnothing(${label_im})
+
+                    labels = image_data[${label_im}]
+
+                    if isnothing(${intensity_im})
+
+                        df = JIVECore.Analyze.region_stats(labels)
+
+                    else
+
+                        img = image_data[${intensity_im}]
+
+                        df = JIVECore.Analyze.region_stats(labels, img)
+
+                    end
+
+                    df
+
+                end
+
+            end
+
+            `);
+
+}),
+
+
+////////////////////////
+// IMAGE HISTOGRAM    //
+////////////////////////
+
+createMenuItem("Show Image Histogram", async function () {
+
+    const sel_im = getVarName("hist_im");
+    const plot_norm = getVarName("hist_norm");
+    const plot_edges = getVarName("hist_edges");
+
+    ////////////////////////////////////
+    // UI CELL
+    ////////////////////////////////////
+
+    createMDCellWithUI(
+        "Image Histogram",
+        `
+Select image:
+$(@bind ${sel_im} Select([nothing, image_keys...]))
+
+Normalize counts:
+$(@bind ${plot_norm} PlutoUI.CheckBox(false))
+
+Normalize edges (0-1):
+$(@bind ${plot_edges} PlutoUI.CheckBox(false))
+        `
+    );
+
+    await resolveAfterTimeout(300);
+
+    ////////////////////////////////////
+    // Processing
+    ////////////////////////////////////
+
+    createCellWithCode(`
+
+let
+
+    if !isnothing(${sel_im})
+
+        img = image_data[${sel_im}]
+        
+        # Si es AxisArray usamos .data
+        img_data = img isa JIVECore.Data.AxisArray ? img.data : img
+
+        # Detecta tipo de imagen
+        is_rgb = img_data isa JIVECore.Data.AbstractArray{<:JIVECore.Visualize.ColorTypes.RGB}
+
+        # Calcula histograma
+        if is_rgb
+            edges, counts = JIVECore.Process.imHistogram(img_data, 8; normalize=${plot_norm}, normalize_edges=${plot_edges})
+        else
+            edges, counts = JIVECore.Process.imHistogram(img_data, 8; normalize=${plot_norm}, normalize_edges=${plot_edges})
+        end
+
+        # Mostrar histograma
+        plt =JIVECore.Visualize.showHist(edges, counts)
+
+    end
+
+end # let
+
+    `);
+
+}),
+
+
+////////////////////////
+// PIXEL STATISTICS
+////////////////////////
+
+            createMenuItem("Pixel Statistics", async function () {
+
+                const sel_im = getVarName("pixel_stats_im");
+
+                createMDCellWithUI(
+                    "Pixel Statistics",
+                    `
+Select image:
+$(@bind ${sel_im} Select([nothing, image_keys...]))
+                    `
+                );
+
+                await resolveAfterTimeout(300);
+
+                createCellWithCode(`
+
+            let
+
+                if !isnothing(${sel_im})
+
+                    img = image_data[${sel_im}]
+
+                    df = JIVECore.Analyze.array_statistics(img; stats=[:mean,:std,:min,:max])
+
+                    df
+
+                end
+
+            end
+
+            `);
+
+}),
     ]
 
     // 🔵 Shape Analysis

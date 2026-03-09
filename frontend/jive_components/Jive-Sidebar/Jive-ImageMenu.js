@@ -612,7 +612,6 @@ $(@bind ${lut_fontsize} Slider(0.01:0.001:0.1, default=0.03))
                 `);
         
         }),
-        
     ]
 
     // Submenu channels
@@ -631,7 +630,7 @@ $(@bind ${sel_im} Select([nothing, image_keys...]))
     
             await resolveAfterTimeout(300);
             createCellWithCode(`
-            using Colors
+            
     let
     if !isnothing(${sel_im})
     
@@ -644,7 +643,7 @@ $(@bind ${sel_im} Select([nothing, image_keys...]))
             # Detect color space name prefix
             prefix = ""
     
-            if eltype(img) <: ColorTypes.HSV
+            if eltype(img) <: JIVECore.Visualize.ColorTypes.HSV
                 prefix = "_HSV"
                 channel_names = [:H,:S,:V]
             else
