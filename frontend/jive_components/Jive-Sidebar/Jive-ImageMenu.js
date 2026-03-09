@@ -152,6 +152,160 @@ $(@bind ${bitrate} Select([8, 16, 32, 64]))
         `);
         
         }),
+////////////////////////
+// CONVERSION TO RGB  //
+////////////////////////
+
+            createMenuItem("Convert to RGB Composition", async function () {
+
+                const sel_im = getVarName("rgb_im");
+                const rgb_key = getVarName("rgb_key");
+                const show_rgb = getVarName("rgb_show");
+                const apply_contrast = getVarName("rgb_contrast");
+
+                const sel_r = getVarName("rgb_r");
+                const sel_g = getVarName("rgb_g");
+                const sel_b = getVarName("rgb_b");
+
+                ////////////////////////////////////
+                // UI CELL
+                ////////////////////////////////////
+
+                createMDCellWithUI(
+                    "RGB Channel Composition",
+                    `
+Select image:
+$(@bind ${sel_im} Select([nothing, image_keys...]))
+
+Apply auto contrast:
+$(@bind ${apply_contrast} PlutoUI.CheckBox(default=true))
+            `
+                );
+
+                await resolveAfterTimeout(300);
+
+                ////////////////////////////////////
+                // Dynamic channel selector
+                ////////////////////////////////////
+
+                createCellWithCode(`
+
+            channels_options = begin
+
+            if isnothing(${sel_im})
+                [:r,:g,:b]
+
+            else
+
+                img_local = image_data[${sel_im}]
+
+                if img_local isa JIVECore.Data.AxisArray &&
+                (:C in JIVECore.Data.axisnames(img_local) ||
+                    :c in JIVECore.Data.axisnames(img_local))
+
+                    C_axis = findfirst(
+                        x -> lowercase(String(x)) == "c",
+                        JIVECore.Data.axisnames(img_local)
+                    )
+
+                    nC = size(parent(img_local), C_axis)
+
+                    Symbol.("C" .* string.(1:nC))
+
+                else
+                    [:r,:g,:b,:m,:y,:c,:gray]
+
+                end
+
+            end
+
+            end
+
+md"""
+RGB Channel Mapping:
+
+R channel:
+$(@bind ${sel_r} Select(channels_options))
+
+G channel:
+$(@bind ${sel_g} Select(channels_options))
+
+B channel:
+$(@bind ${sel_b} Select(channels_options))
+"""
+`);
+
+                await resolveAfterTimeout(300);
+
+                ////////////////////////////////////
+                // Processing pipeline
+                ////////////////////////////////////
+
+                createCellWithCode(`
+
+            ${rgb_key} = nothing
+
+            let
+
+            if !isnothing(${sel_im})
+
+                img = copy(image_data[${sel_im}])
+
+                rgb_img = JIVECore.Data.im2rgb(
+                    img;
+                    channels=[
+                        Symbol(${sel_r}),
+                        Symbol(${sel_g}),
+                        Symbol(${sel_b})
+                    ]
+                )
+
+                if ${apply_contrast}
+                    rgb_img = JIVECore.Process.autoContrast(rgb_img)
+                end
+
+                base_name = string(${sel_im}, "_rgb")
+
+                key = JIVECore.Data.keyCheck(image_data, base_name)
+
+                image_data[key] = rgb_img
+
+                if !(key in image_keys)
+                    push!(image_keys, key)
+                end
+
+                global ${rgb_key}
+                ${rgb_key} = key
+
+            end
+
+            end
+
+            nothing
+            `);
+
+    await resolveAfterTimeout(300);
+
+    ////////////////////////////////////
+    // Visualization toggle
+    ////////////////////////////////////
+
+    createMDCellWithUI(
+        `$(@bind ${show_rgb} PlutoUI.CheckBox(default=false)) Show RGB image`,
+        ""
+    );
+
+    await resolveAfterTimeout(300);
+
+    createCellWithCode(`
+
+if ${show_rgb} && !isnothing(${rgb_key})
+    JIVECore.Visualize.gif(image_data[${rgb_key}])
+end
+
+`);
+
+}),
 
         ///////////////////////
         // CONVERSION TO HSV //
@@ -296,6 +450,77 @@ $(@bind ${precision} Select([:float32, :float64]))
         
         }),
 
+        createMenuItem("Convert to AxisArray Annotation", async function () {
+
+            const sel_im = getVarName("axis_im");
+            const axis_key = getVarName("axis_key");
+            const axis_labels = getVarName("axis_labels");
+        
+            ////////////////////////////////////
+            // UI
+            ////////////////////////////////////
+        
+            createMDCellWithUI(
+                "Convert Image to AxisArray",
+                `
+Select image:
+$(@bind ${sel_im} Select([nothing, image_keys...]))
+        
+Axis labels (comma separated):
+$(@bind ${axis_labels} TextField(default="X,Y,Z,C"))
+                `
+            );
+        
+            await resolveAfterTimeout(300);
+        
+            ////////////////////////////////////
+            // Processing
+            ////////////////////////////////////
+        
+            createCellWithCode(`
+        
+                ${axis_key} = nothing
+        
+                let
+        
+                if !isnothing(${sel_im})
+        
+                    img = copy(image_data[${sel_im}])
+        
+                    # Parse axis labels
+                    axes_tuple = Tuple(Symbol.(strip.(split(${axis_labels}, ","))))
+        
+                    axis_img = JIVECore.Data.im2axis(
+                        img;
+                        axes=axes_tuple
+                    )
+        
+                    base_name = string(${sel_im}, "_axis")
+        
+                    key = JIVECore.Data.keyCheck(image_data, base_name)
+                
+                    image_data[key] = axis_img
+        
+                    if !(key in image_keys)
+                        push!(image_keys, key)
+                    end
+
+                    println("Image stored as \\"$(key)\\" ")
+                    println("Type: ", typeof(axis_img))
+                    println("Dimensions: ", size(axis_img))
+                    println("Axes: ", JIVECore.Data.axisnames(axis_img))
+        
+                    global ${axis_key}
+                    ${axis_key} = key
+        
+                end
+                end
+        
+                nothing
+            `);
+        
+        }),
+
     ]
 
     const tableItems = [
@@ -387,6 +612,7 @@ $(@bind ${lut_fontsize} Slider(0.01:0.001:0.1, default=0.03))
                 `);
         
         }),
+        
     ]
 
     // Submenu channels
@@ -406,6 +632,7 @@ $(@bind ${sel_im} Select([nothing, image_keys...]))
             await resolveAfterTimeout(300);
             createCellWithCode(`
             using Colors
+    let
     if !isnothing(${sel_im})
     
         img = copy(image_data[${sel_im}])
@@ -444,7 +671,7 @@ $(@bind ${sel_im} Select([nothing, image_keys...]))
             end
     
         end
-    
+    end
     end
     
     nothing
@@ -493,7 +720,7 @@ $(@bind ${ch3} Select([:r,:g,:b,:m,:y,:c,:gray]))
             // 🔹 Crear merge
             createCellWithCode(`
         ${merged_key} = nothing
-        
+        let
         if !isnothing(${sel_im1}) && !isnothing(${sel_im2}) && !isnothing(${sel_im3})
         
             img1 = copy(image_data[${sel_im1}])
@@ -517,9 +744,10 @@ $(@bind ${ch3} Select([:r,:g,:b,:m,:y,:c,:gray]))
             end
         
             println("Merged image stored as ", key)
-        
+            
+            global ${merged_key}
             ${merged_key} = key
-        
+        end
         end
         
         nothing
@@ -561,21 +789,38 @@ $(@bind ${ch3} Select([:r,:g,:b,:m,:y,:c,:gray]))
                 `
 Select image:
 $(@bind ${sel_im} Select([nothing, image_keys...]))
-        
-Projection dimension (axis or index):
-$(@bind ${sel_dim} Select([1, 2, 3, :x, :y, :z, :t, :c], default=:z))
-        
+            
 Method:
 $(@bind ${sel_method} Select([:max, :mean, :sum, :std, :median], default=:max))
                 `
             );
+
+            await resolveAfterTimeout(300);
+
+            createCellWithCode(`
+
+                dims = if isnothing(${sel_im})
+                    [1,2,3]
+                else
+                    current_img = image_data[${sel_im}]
+                    current_img isa JIVECore.Data.AxisArray ?
+                        collect(JIVECore.Data.axisnames(current_img)) :
+                        collect(1:ndims(current_img))
+                end
+                
+                md"""
+                Projection dimension:
+                $(@bind ${sel_dim} Select(dims))
+                """
+                
+                `);
         
             await resolveAfterTimeout(300);
         
             createCellWithCode(`
         
         ${proj_key} = nothing
-        
+        let
         if !isnothing(${sel_im}) && !isnothing(${sel_dim})
         
             img = image_data[${sel_im}]
@@ -591,7 +836,7 @@ $(@bind ${sel_method} Select([:max, :mean, :sum, :std, :median], default=:max))
             base_name = string(${sel_im}, "_proj_", ${sel_method})
             key = JIVECore.Data.keyCheck(image_data, base_name)
         
-            image_data[key] = final_img
+            image_data[key] = projected
         
             if !(key in image_keys)
                 push!(image_keys, key)
@@ -600,7 +845,7 @@ $(@bind ${sel_method} Select([:max, :mean, :sum, :std, :median], default=:max))
             global ${proj_key}
             ${proj_key} = key
             println("Projection stored as ", key)
-        
+        end
         end
         
         nothing

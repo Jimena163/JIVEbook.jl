@@ -155,6 +155,120 @@ end`)
         createMenuItem("Threshold", function () {}),
         createMenuItem("Segment", function () {}),
         createMenuItem("Normalize", function () {}),
+        createMenuItem("Calculate Images", async function () {
+
+            const sel_img1 = getVarName("calc_img1");
+            const sel_img2 = getVarName("calc_img2");
+        
+            const sel_c1 = getVarName("calc_c1");
+            const sel_c2 = getVarName("calc_c2");
+        
+            const sel_op = getVarName("calc_op");
+            const rem_neg = getVarName("calc_remove_neg");
+        
+            const calc_key = getVarName("calc_key");
+        
+            ////////////////////////////////////
+            // UI
+            ////////////////////////////////////
+        
+            createMDCellWithUI(
+                "Image Calculation",
+                `
+Image 1:
+$(@bind ${sel_img1} Select([nothing, image_keys...]))
+        
+Channel img1:
+$(@bind ${sel_c1} NumberField(1:10, default=1))
+        
+Image 2:
+$(@bind ${sel_img2} Select([nothing, image_keys...]))
+        
+Channel img2:
+$(@bind ${sel_c2} NumberField(1:10, default=1))
+        
+Operation:
+$(@bind ${sel_op} Select(["+", "-", "*", "/"]))
+        
+Remove negatives:
+$(@bind ${rem_neg} CheckBox(default=false))
+                `
+            );
+        
+            await resolveAfterTimeout(300);
+        
+            ////////////////////////////////////
+            // Processing
+            ////////////////////////////////////
+        
+            createCellWithCode(`
+        
+        ${calc_key} = nothing
+        
+        let
+        
+        if !isnothing(${sel_img1}) && !isnothing(${sel_img2})
+        
+            img1_full = image_data[${sel_img1}]
+            img2_full = image_data[${sel_img2}]
+        
+            # --- detectar canal en img1 ---
+            if img1_full isa JIVECore.Data.AxisArray && :c in JIVECore.Data.axisnames(img1_full)
+                img1 = img1_full[c=${sel_c1}]
+            else
+                img1 = img1_full
+            end
+        
+            # --- detectar canal en img2 ---
+            if img2_full isa JIVECore.Data.AxisArray && :c in JIVECore.Data.axisnames(img2_full)
+                img2 = img2_full[c=${sel_c2}]
+            else
+                img2 = img2_full
+            end
+        
+            # --- operación ---
+            if ${sel_op} == "+"
+                op = +
+            elseif ${sel_op} == "-"
+                op = -
+            elseif ${sel_op} == "*"
+                op = *
+            else
+                op = /
+            end
+        
+            result = JIVECore.Data.imCalculate(
+                img1,
+                img2,
+                op;
+                remove_negatives=${rem_neg}
+            )
+        
+            base_name = string(${sel_img1}, "_", ${sel_op}, "_", ${sel_img2})
+        
+            key = JIVECore.Data.keyCheck(image_data, base_name)
+        
+            image_data[key] = result
+        
+            if !(key in image_keys)
+                push!(image_keys, key)
+            end
+        
+            global ${calc_key}
+            ${calc_key} = key
+        
+            println("Stored image: ", key)
+            println("Size: ", size(result))
+        
+        end
+        
+        end
+        
+        nothing
+        
+        `);
+        
+        }),
     ]
 
     // Add accordions to menu

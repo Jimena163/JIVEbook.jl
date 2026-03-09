@@ -158,6 +158,128 @@ $(@bind t_unit Select(["s", "ms"]))
     // 🌈 Colormap & Channels
     const colormapItems = [
         createMenuItem("Set Colormap (e.g., gray, viridis, magma)", function () {}),
+        createMenuItem("Time Color Map", async function () {
+
+            const sel_img = getVarName("timecolor_img");
+            const sel_scheme = getVarName("timecolor_scheme");
+            const show_res = getVarName("timecolor_show");
+        
+            const out_key = getVarName("timecolor_key");
+        
+            ////////////////////////////////////
+            // UI
+            ////////////////////////////////////
+        
+            createMDCellWithUI(
+                "Time Color Mapping",
+                `
+Image stack:
+$(@bind ${sel_img} Select([nothing, image_keys...]))
+        
+Color scheme:
+$(@bind ${sel_scheme} Select([:batlowW,:batlow,:viridis,:magma,:inferno,:plasma]))
+
+                `
+            );
+        
+            await resolveAfterTimeout(300);
+        
+            ////////////////////////////////////
+            // Processing
+            ////////////////////////////////////
+        
+            createCellWithCode(`
+        
+        ${out_key} = nothing
+        
+        let
+        
+        if !isnothing(${sel_img})
+        
+            img_full = image_data[${sel_img}]
+        
+            ##################################
+            # Detect time axis automatically
+            ##################################
+        
+            if img_full isa JIVECore.Data.AxisArray
+        
+                ax = JIVECore.Data.axisnames(img_full)
+        
+                t_axis = findfirst(x -> lowercase(String(x)) == "time", ax)
+        
+                if isnothing(t_axis)
+                    error("Selected image does not contain a time axis")
+                end
+        
+                data = parent(img_full)
+        
+                # reorder axes so time is third
+                perm = collect(1:ndims(data))
+        
+                perm[3], perm[t_axis] = perm[t_axis], perm[3]
+        
+                img = permutedims(data, perm)
+        
+            else
+        
+                img = img_full
+        
+            end
+        
+            ##################################
+            # Apply time color mapping
+            ##################################
+        
+            result = JIVECore.Data.imTimeColor(
+                img,
+                ${sel_scheme}
+            )
+        
+            base_name = string(${sel_img}, "_timecolor")
+        
+            key = JIVECore.Data.keyCheck(image_data, base_name)
+        
+            image_data[key] = result
+        
+            if !(key in image_keys)
+                push!(image_keys, key)
+            end
+        
+            global ${out_key}
+            ${out_key} = key
+        
+            println("Stored image: ", key)
+            println("Size: ", size(result))
+        
+        
+        end
+        
+        end
+        
+        nothing
+        
+        `);
+        await resolveAfterTimeout(300);
+        
+        // 🔹 Checkbox
+        createMDCellWithUI(
+`$(@bind ${show_res} PlutoUI.CheckBox(default=false)) Show image`,""
+        );
+
+        await resolveAfterTimeout(300);
+        
+        // 🔹 Mostrar imagen
+        createCellWithCode(`
+    if ${show_res} && !isnothing(${out_key})
+        JIVECore.Visualize.gif(
+            JIVECore.Process.autoContrast(image_data[${out_key}])
+        )
+    end
+        `);
+
+        
+        }),
         createMenuItem("Toggle Channels", function () {}),
         createMenuItem("Split Channels to Layers", function () {}),
         createMenuItem("Channel Opacity", function () {}),
