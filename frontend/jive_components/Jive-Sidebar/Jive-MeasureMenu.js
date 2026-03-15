@@ -176,54 +176,71 @@ end
 // ANALYZE PARTICLES
 ////////////////////////
 
-            createMenuItem("Analyze Particles", async function () {
+createMenuItem("Analyze Particles", async function () {
 
-                const label_im = getVarName("label_image");
-                const intensity_im = getVarName("intensity_image");
+    const label_im = getVarName("label_image");
+    const intensity_im = getVarName("intensity_image");
+    const df_part = getVarName("df_paricles");
+    const stats_sel = getVarName("stats_selection");
 
-                createMDCellWithUI(
-                    "Analyze Particles",
-                    `
+    createMDCellWithUI(
+        "Analyze Particles",
+        `
 Label image:
 $(@bind ${label_im} Select([nothing, image_keys...]))
 
 Intensity image (optional):
 $(@bind ${intensity_im} Select([nothing, image_keys...]))
-                    `
-                );
 
-                await resolveAfterTimeout(300);
+Statistics:
+$(@bind ${stats_sel} MultiSelect([
+:count,
+:centroid,
+:bbox,
+:aspect_ratio,
+:perimeter,
+:circularity,
+:roundness,
+:feret_diameter,
+:major_axis,
+:minor_axis,
+:angle,
+:eccentricity,
+:mean,
+:std,
+:min,
+:max,
+:area
+]))
+        `
+    );
 
-                createCellWithCode(`
+    await resolveAfterTimeout(300);
 
-            let
+    createCellWithCode(`
+if !isnothing(${label_im})
+    let 
 
-                if !isnothing(${label_im})
+        labels = image_data[${label_im}]
+       
+        stats = Symbol.(${stats_sel})
 
-                    labels = image_data[${label_im}]
+        if isnothing(${intensity_im})
 
-                    if isnothing(${intensity_im})
+                df = JIVECore.Analyze.region_stats(labels; stats=stats)
 
-                        df = JIVECore.Analyze.region_stats(labels)
+        else
 
-                    else
+            img = image_data[${intensity_im}]
+            df = JIVECore.Analyze.region_stats(labels, img; stats=stats)
 
-                        img = image_data[${intensity_im}]
-
-                        df = JIVECore.Analyze.region_stats(labels, img)
-
-                    end
-
-                    df
-
-                end
-
-            end
-
-            `);
+        end
+        df
+    end
+end
+    `);
 
 }),
-
 
 ////////////////////////
 // IMAGE HISTOGRAM    //
@@ -329,6 +346,75 @@ $(@bind ${sel_im} Select([nothing, image_keys...]))
             `);
 
 }),
+
+createMenuItem("Show Distribution", async function () {
+
+    const vis_df = getVarName("vis_df");
+    const vis_col = getVarName("vis_col");
+    const vis_fit = getVarName("vis_fit");
+
+    //////////////////////////////
+    // UI
+    //////////////////////////////
+
+    createMDCellWithUI(
+        "Show Distribution",
+        `
+Select DataFrame:
+$(@bind ${vis_df} Select([nothing, df_keys...]))
+
+Fit distribution:
+$(@bind ${vis_fit} Select([nothing, "Normal", "LogNormal", "Gamma"]))
+        `
+    );
+
+    await resolveAfterTimeout(300);
+
+    //////////////////////////////
+    // Column selector
+    //////////////////////////////
+
+    createCellWithCode(`
+if !isnothing(${vis_df})
+
+    df_local = ${vis_df}
+
+    md"""
+Column:
+$(@bind ${vis_col} Select(names(df_local)))
+"""
+
+end
+`);
+
+    await resolveAfterTimeout(300);
+
+    //////////////////////////////
+    // Plot
+    //////////////////////////////
+
+    createCellWithCode(`
+if !isnothing(${vis_df}) && !isnothing(${vis_col})
+
+    df_local = ${vis_df}
+
+    fit_map = Dict(
+        "Normal" => Normal,
+        "LogNormal" => LogNormal,
+        "Gamma" => Gamma
+    )
+
+    fit_dist = haskey(fit_map, ${vis_fit}) ? fit_map[${vis_fit}] : nothing
+
+    JIVECore.Visualize.showDist(
+        df_local.${vis_col};
+        fit_dist=fit_dist
+    )
+
+end
+`);
+
+}),
     ]
 
     // 🔵 Shape Analysis
@@ -343,7 +429,75 @@ $(@bind ${sel_im} Select([nothing, image_keys...]))
     // 🔢 Object Detection
     const objectItems = [
         createMenuItem("Count Particles", function () {}),
-        createMenuItem("Label Components", function () {}),
+
+//////////////////////////
+// 2️⃣ Label Components
+//////////////////////////
+createMenuItem("Label Components", async function () {
+
+    const sel_im = getVarName("label_dt_im");
+    const dist_threshold = getVarName("label_dist_threshold");
+    const lbl_key = getVarName("lbl_key");
+
+    ////////////////////////////////////
+    // UI PANEL
+    ////////////////////////////////////
+    createMDCellWithUI(
+        "Label Components",
+        `
+Select distance transform image:
+$(@bind ${sel_im} Select([nothing, image_keys...]))
+
+Distance threshold:
+$(@bind ${dist_threshold} Slider(-5:0.1:5, default=0.1, show_value=true))
+        `
+    );
+
+    await resolveAfterTimeout(300);
+
+    ////////////////////////////////////
+    // PROCESSING
+    ////////////////////////////////////
+    createCellWithCode(`
+        ${lbl_key} = nothing
+if !isnothing(${sel_im})
+    let
+        dist_img = image_data[${sel_im}]
+        markers = JIVECore.Process.label_components(dist_img .< ${dist_threshold})
+
+        # Normalizar y convertir a Gray
+        out = JIVECore.Data.Gray.(markers ./ 10)
+
+        # Guardar imagen en image_data con keyCheck
+        key = JIVECore.Data.keyCheck(image_data, "markers_" * ${sel_im})
+
+        image_data[key] = out
+        if !(key in image_keys)
+            push!(image_keys, key)
+        end
+
+        # Variable global para UI
+        global ${lbl_key}
+        ${lbl_key} = key
+
+        println("Labeled components saved as: ", key)
+
+    end
+end
+`);
+
+    await resolveAfterTimeout(300);
+
+    ////////////////////////////////////
+    // VISUALIZATION
+    ////////////////////////////////////
+    createCellWithCode(`
+if !isnothing(${lbl_key})
+    img_lbl = image_data[${lbl_key}]
+    JIVECore.Data.Gray(img_lbl; title="Labeled Components")
+end
+`);
+}),
         createMenuItem("Bounding Boxes", function () {}),
         createMenuItem("Centroid Detection", function () {}),
         createMenuItem("Object Table Export", function () {}),
