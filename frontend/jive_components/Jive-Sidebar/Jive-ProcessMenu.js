@@ -413,8 +413,7 @@ ${ws_key} = nothing
 if !isnothing(${sel_im})
 
     let
-        local_base = string(${sel_im}, "_ws")
-
+      
         key = string(${sel_im}, "_ws")
 
         img_tmp = image_data[${sel_im}]

@@ -80,45 +80,59 @@ export function createViewMenu(timeoutValue) {
 
     // 👁️ View / Display
     const viewDisplayItems = [
-        createMenuItem("Mosaic View", async function () {
-
-            const sel_imgs = getVarName("mosaic_imgs");
-            const nrow = getVarName("mosaic_nrow");
-            const ncol = getVarName("mosaic_ncol");
+            createMenuItem("Mosaic View", async function () {
         
-            ////////////////////////////////////
-            // UI
-            ////////////////////////////////////
+                const sel_imgs = getVarName("mosaic_imgs");
+                const sel_times = getVarName("mosaic_times"); // nueva variable para tiempos
+                const nrow = getVarName("mosaic_nrow");
+                const ncol = getVarName("mosaic_ncol");
         
-            createMDCellWithUI(
-                "Mosaic Image Viewer",
-                `
+                ////////////////////////////////////
+                // UI
+                ////////////////////////////////////
+        
+                createMDCellWithUI(
+                    "Mosaic Image Viewer",
+                    `
 Images to display:
 $(@bind ${sel_imgs} MultiSelect(image_keys))
+        
+Times to display (per image, 0-indexed):
+$(@bind ${sel_times} MultiSelect(0:49))
         
 Rows:
 $(@bind ${nrow} NumberField(1:10, default=1))
         
 Columns:
 $(@bind ${ncol} NumberField(1:10, default=1))
-                `
-            );
+                    `
+                );
         
-            await resolveAfterTimeout(300);
+                await resolveAfterTimeout(300);
         
-            ////////////////////////////////////
-            // Visualization
-            ////////////////////////////////////
+                ////////////////////////////////////
+                // Visualization
+                ////////////////////////////////////
         
-            createCellWithCode(`
-        
+                createCellWithCode(`
         let
         
         if !isnothing(${sel_imgs}) && length(${sel_imgs}) > 0
         
+            # Extraer imágenes seleccionadas
             imgs = map(k -> image_data[k], ${sel_imgs})
         
-            println("Displaying mosaic with ", length(imgs), " images")
+            # Si hay selección de tiempos, tomar solo esos frames
+            imgs = map(img -> begin
+                if !isnothing(${sel_times}) && length(${sel_times}) > 0
+                    # img[:, :, sel_times .+ 1]  # Julia es 1-indexed
+                    img[:, :, ${sel_times} .+ 1]
+                else
+                    img
+                end
+            end, imgs)
+        
+            println("Displaying mosaic with ", length(imgs), " images, ", length(${sel_times}), " frames per image")
         
             JIVECore.Visualize.mosaicview(
                 imgs...;
@@ -129,10 +143,8 @@ $(@bind ${ncol} NumberField(1:10, default=1))
         end
         
         end
-        
-        `);
-        
-        }),
+                `);
+            }),
         createMenuItem("Zoom In", function () {}),
         createMenuItem("Zoom Out", function () {}),
         createMenuItem("Reset Zoom", function () {}),
@@ -148,62 +160,118 @@ $(@bind ${ncol} NumberField(1:10, default=1))
         createMenuItem("Brightness Slider", function () {}),
         createMenuItem("Gamma Adjustment", function () {}),
         createMenuItem("Histogram View", function () {}),
-        createMenuItem("Calibrate Image", async function () {
-            const sel_im = getVarName("sel_im");
         
             // 1️⃣ Selección de imagen ya cargada
-            createMDCellWithUI(
-                "Calibrate Parameters",
-                `
+            createMenuItem("Calibrate Image", async function () {
+
+                const sel_im = getVarName("sel_im");
+                const calibrate_h = getVarName("calibrate_h");
+                const calibrate_v = getVarName("calibrate_v");
+                const calibrate_t = getVarName("calibrate_t");
+            
+                const h_val = getVarName("h_val");
+                const h_unit = getVarName("h_unit");
+                const v_val = getVarName("v_val");
+                const v_unit = getVarName("v_unit");
+                const t_val = getVarName("t_val");
+                const t_unit = getVarName("t_unit");
+            
+                const calibrated_key = getVarName("calibrated_key");
+            
+                ////////////////////////////////////
+                // UI PANEL
+                ////////////////////////////////////
+                createMDCellWithUI(
+                    "Calibrate Parameters",
+                    `
 1. Select Image
 $(@bind ${sel_im} Select([nothing, image_keys...]))
-        
-2. Eje horizontal
-$(@bind h_val NumberField(0:0.001:10, default=0.001))
-$(@bind h_unit Select(["mm", "μm"]))
-        
-3. Eje vertical
-$(@bind v_val NumberField(0:0.1:10, default=1))
-$(@bind v_unit Select(["mm", "μm"]))
-        
-4. Eje temporal
-$(@bind t_val NumberField(0:1:100, default=1))
-$(@bind t_unit Select(["s", "ms"]))
-            `
-            );
-        
-            await resolveAfterTimeout(300);
-        
-            // 2️⃣ Celda reactiva de calibración
-            createCellWithCode(`
-        using Unitful
-        
-        img2 = nothing
-        if !isnothing(${sel_im})
-            v_unit_val = v_unit == "mm" ? Unitful.mm : Unitful.μm
-            h_unit_val = h_unit == "mm" ? Unitful.mm : Unitful.μm
-            t_unit_val = t_unit == "s" ? Unitful.s : Unitful.ms
-        
-            img2 = JIVECore.Data.imCalibrate(
-                image_data[${sel_im}];
-                v = v_val * v_unit_val,
-                h = h_val * h_unit_val,
-                time = t_val * t_unit_val
-            )
-        end
-        
-        nothing  # Evita mostrar img2 automáticamente
-            `);
-        
-            await resolveAfterTimeout(300);
-        
-            // 3️⃣ Celda reactiva para mostrar info de la imagen calibrada
-            createCellWithCode(`
-        if !isnothing(img2)
-            JIVECore.Files.showInfo(img2)
-        end
-            `);
-        }),
+            
+2. Choose axes to calibrate:
+Horizontal $(@bind ${calibrate_h} PlutoUI.CheckBox(true))
+Vertical   $(@bind ${calibrate_v} PlutoUI.CheckBox())
+Time      $(@bind ${calibrate_t} PlutoUI.CheckBox())
+            
+Horizontal value: $(@bind ${h_val} NumberField(0:0.001:10, default=0.001))
+Horizontal unit: $(@bind ${h_unit} Select(["mm", "μm"]))
+            
+Vertical value: $(@bind ${v_val} NumberField(0:0.1:10, default=1))
+Vertical unit: $(@bind ${v_unit} Select(["mm", "μm"]))
+            
+Time value: $(@bind ${t_val} NumberField(0:1:100, default=1))
+Time unit: $(@bind ${t_unit} Select(["s", "ms"]))
+                    `
+                );
+            
+                await resolveAfterTimeout(300);
+            
+                ////////////////////////////////////
+                // PROCESSING
+                ////////////////////////////////////
+                createCellWithCode(`
+            using Unitful
+
+            ${calibrated_key} = nothing
+
+            if !isnothing(${sel_im})
+
+                img = image_data[${sel_im}]
+
+                # Obtener los nombres de los ejes de la imagen
+                axes_names = JIVECore.Data.axisnames(img)
+                dims = length(axes_names)
+
+                # Crear diccionario de spacings por defecto = 1
+                spacings = Dict{Symbol,Any}()
+                for ax in axes_names
+                    spacings[ax] = 1
+                end
+
+                # Reemplazar solo los ejes que el usuario seleccionó
+                if ${calibrate_h} && dims >= 1
+                    spacings[axes_names[1]] = ${h_val} * (${h_unit} == "mm" ? Unitful.mm : Unitful.μm)
+                end
+
+                if ${calibrate_v} && dims >= 2
+                    spacings[axes_names[2]] = ${v_val} * (${v_unit} == "mm" ? Unitful.mm : Unitful.μm)
+                end
+
+                if ${calibrate_t} && dims >= 3
+                    spacings[axes_names[3]] = ${t_val} * (${t_unit} == "s" ? Unitful.s : Unitful.ms)
+                end
+
+                # Calibrar imagen con todos los ejes
+                img2 = JIVECore.Data.imCalibrate(img; spacings...)
+
+                # Guardar imagen calibrada en el diccionario con keyCheck
+                key = JIVECore.Data.keyCheck(image_data, string(${sel_im}, "_calibrated"))
+                image_data[key] = img2
+
+                if !(key in image_keys)
+                    push!(image_keys, key)
+                end
+
+                global ${calibrated_key}
+                ${calibrated_key} = key
+
+                println("Calibrated image stored as: ", key)
+            end
+
+            nothing
+                `);
+            
+                await resolveAfterTimeout(300);
+            
+                ////////////////////////////////////
+                // SHOW INFO
+                ////////////////////////////////////
+                createCellWithCode(`
+            if !isnothing(${calibrated_key})
+                JIVECore.Files.showInfo(image_data[${calibrated_key}])
+            end
+                `);
+            
+            }),
               
         
     ]        
@@ -358,87 +426,154 @@ $(@bind ${sel_scheme} Select([:batlowW,:batlow,:viridis,:magma,:inferno,:plasma]
 
     // 📐 Scale & Axes
     const scaleItems = [
-        createMenuItem("Show Scale Bar", async function () {
-            const ts_channels = getVarName("ts_channels");
-            const ts_fontsize = getVarName("ts_fontsize");
-            const ts_corner = getVarName("ts_corner");
-        
-            const sb1_size = getVarName("sb1_size");
-            const sb1_fontsize = getVarName("sb1_fontsize");
-            const sb1_corner = getVarName("sb1_corner");
-            const sb1_channels = getVarName("sb1_channels");
-        
-            const sb2_size = getVarName("sb2_size");
-            const sb2_fontsize = getVarName("sb2_fontsize");
-            const sb2_corner = getVarName("sb2_corner");
-            const sb2_channels = getVarName("sb2_channels");
-        
-            // Panel de parámetros
-            createMDCellWithUI(
-                "Overlays on Calibrated Image",
-                `      
-1. Scalebar horizontal
-$(@bind sb1_size NumberField(0.001:0.001:10, default=0.05))
-        
-2. Scalebar vertical
-$(@bind sb2_size NumberField(1:1:100, default=50))
 
-                `
-            );
-        
-            await resolveAfterTimeout(300);
-        
-            // Celda que dibuja los overlays
-            createCellWithCode(`
-            # Crear una copia de la imagen calibrada
-            img2_copy = copy(img2)
+//////////////////////////
+// Draw Scale Bar
+//////////////////////////
+createMenuItem("Draw Scale Bar", async function () {
 
-        
-        if !isnothing(img2_copy)
-            # Timestamp
-            JIVECore.Draw.timestamp!(
-                img2,
-                channels=[:h,:v,:time],
-                fontsize=0.06,
-                corner=:topright
-            )
-        
-            # Scalebar horizontal
-            JIVECore.Draw.scalebar!(
-                img2_copy,
-                sb1_size * Unitful.mm,
-                fontsize=0.04,
-                channels=[:h,:v],
-                corner=:bottomleft,
-                show_text=true
-            )
-        
-            # Scalebar vertical
-            JIVECore.Draw.scalebar!(
-                img2_copy,
-                sb2_size * Unitful.mm,
-                direction=:v,
-                fontsize=0.04,
-                fcolor=(1,1,1),
-                channels=[:h,:v],
-                corner=:bottomleft,
-                show_text=true
-            )
-        end
-        
-        nothing
-            `);
+    const sel_im = getVarName("sb_im");           // Imagen seleccionada
+    const sb_h_size = getVarName("sb_h_size");    // Tamaño barra horizontal
+    const sb_v_size = getVarName("sb_v_size");    // Tamaño barra vertical
+    const sb_h_corner = getVarName("sb_h_corner");
+    const sb_v_corner = getVarName("sb_v_corner");
+    const sb_channels = getVarName("sb_channels");
+    const sb_out_key = getVarName("sb_out_key");
 
-            await resolveAfterTimeout(300);
+    ////////////////////////////////////
+    // UI PANEL
+    ////////////////////////////////////
+    createMDCellWithUI(
+        "Draw Scale Bar",
+        `
+Select Image:
+$(@bind ${sel_im} Select([nothing, image_keys...]))
+    
+Horizontal scalebar size:
+$(@bind ${sb_h_size} NumberField(0.001:0.001:100, default=50))
+Corner H:
+$(@bind ${sb_h_corner} Select([:bottomleft, :bottomright, :topleft, :topright], default=:bottomleft))
+    
+Vertical scalebar size:
+$(@bind ${sb_v_size} NumberField(0.001:0.001:100, default=50))
+Corner V:
+$(@bind ${sb_v_corner} Select([:bottomleft, :bottomright, :topleft, :topright], default=:bottomleft))
+        `
+    );
+    
+    await resolveAfterTimeout(300);
+    
+    createCellWithCode(`
+        img_out = nothing
+        let
+        if !isnothing(${sel_im})
 
-            createCellWithCode(`
-        if !isnothing(img2_copy)
-            JIVECore.Visualize.mosaicview(img2_copy[time=1:3], nrow=1)
-        end
-            `);
+
+            key = string(${sel_im}, "_scalebar")
+
+            img_orig = image_data[${sel_im}]
+            img_out = copy(img_orig)
             
-        }),
+            # Obtener metadata
+			axes_vals	=	JIVECore.Data.axisvalues(img_out)
+			v_axis = axes_vals[1]  # eje vertical
+			h_axis = axes_vals[2]  # eje horizontal
+			
+			v_unit = unit(first(v_axis))
+			h_unit = unit(first(h_axis)) 
+
         
+            # Dibujar scale bars
+                JIVECore.Draw.scalebar!(
+                    img_out,
+                    ${sb_h_size} * h_unit,
+                    direction=:h,
+                    fontsize=0.04,
+                    fcolor=(1,1,1),
+                    channels=[:h,:v],
+                    corner=${sb_h_corner},
+                    show_text=true
+                )
+            
+                JIVECore.Draw.scalebar!(
+                    img_out,
+                    ${sb_v_size} * v_unit,
+                    direction=:v,
+                    fontsize=0.04,
+                    fcolor=(1,1,1),
+                    channels=[:h,:v],
+                    corner=${sb_v_corner},
+                    show_text=true
+                )
+        
+            
+            image_data[key] = img_out
+
+            # Añadir a image_keys si no existe
+            if !(key in image_keys)
+                push!(image_keys, key)
+            end
+
+            global ${sb_out_key}
+            ${sb_out_key} = key
+
+            println("Image with scale bar saved as: ", key)
+        end
+
+        end
+        `);
+
+}),
+
+    createMenuItem("Add Timestamp", async function () {
+
+        const sel_img = getVarName("timestamp_img");  // solo una imagen
+        const sel_times = getVarName("timestamp_times"); // opcional, varios frames
+        const fontsize = getVarName("timestamp_fontsize");
+        const corner = getVarName("timestamp_corner");
+
+        ////////////////////////////////////
+        // UI
+        ////////////////////////////////////
+        createMDCellWithUI(
+            "Timestamp Options",
+            `
+Image to add timestamp:
+$(@bind ${sel_img} Select(image_keys))
+
+Font size:
+$(@bind ${fontsize} NumberField(0.01:0.01:0.2, default=0.06))
+
+Corner:
+$(@bind ${corner} Select(["topleft","topright","bottomleft","bottomright"], default="topright"))
+            `
+        );
+
+        await resolveAfterTimeout(300);
+
+        ////////////////////////////////////
+        // Apply timestamp
+        ////////////////////////////////////
+        createCellWithCode(`
+let
+    if !isnothing(${sel_img})
+
+        img = image_data[${sel_img}]
+
+        # Agregar timestamp
+        JIVECore.Draw.timestamp!(img_view; channels=[:h,:v,:time], fontsize=${fontsize}, corner=Symbol(${corner}))
+
+        # Sobrescribir la imagen
+        image_data[${sel_img}] = img
+
+        println("Timestamp added to image: ", ${sel_img})
+
+end
+end
+        `);
+
+    }),
+
         createMenuItem("Set Units", function () {}),
         createMenuItem("Toggle Axes", function () {}),
         createMenuItem("Change Pixel Size", function () {}),

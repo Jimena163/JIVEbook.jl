@@ -201,7 +201,6 @@ $(@bind ${stats_sel} MultiSelect([
 :perimeter,
 :circularity,
 :roundness,
-:feret_diameter,
 :major_axis,
 :minor_axis,
 :angle,
@@ -494,7 +493,7 @@ end
     createCellWithCode(`
 if !isnothing(${lbl_key})
     img_lbl = image_data[${lbl_key}]
-    JIVECore.Data.Gray(img_lbl; title="Labeled Components")
+    JIVECore.Data.Gray.(img_lbl)
 end
 `);
 }),
