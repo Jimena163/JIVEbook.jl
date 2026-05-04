@@ -87,40 +87,51 @@ export function createMeasureMenu(timeoutValue) {
 createMenuItem("Measure Image", async function () {
 
     const sel_im = getVarName("measure_im");
+    const add_measure = getVarName("add_measure");
+    const results_table = getVarName("results_table");
+    const last_add = getVarName("last_add");
 
     createMDCellWithUI(
         "Measure Image",
         `
 Select image:
 $(@bind ${sel_im} Select([nothing, image_keys...]))
-        `
+    
+Add measurement:
+$(@bind ${add_measure} PlutoUI.CounterButton("Add measurement"))
+    `
     );
 
     await resolveAfterTimeout(300);
-
     createCellWithCode(`
-
-let
-
-global results_table
-
-if !isnothing(${sel_im})
-
-    img = image_data[${sel_im}]
-
-    if isnothing(results_table[])
-        results_table[] = JIVECore.Analyze.stats_table(img)
-    else
-        results_table[] = JIVECore.Analyze.stats_table(img, df=results_table[])
-    end
-
-end
-
-results_table[]
-
-end
-
-`);
+        ${last_add} = Ref(0)
+        global ${results_table} = JIVECore.Analyze.DataFrame()
+        nothing
+        `);
+    
+    await resolveAfterTimeout(300);
+    createCellWithCode(`
+        let
+        if !isnothing(${sel_im})
+        
+            img = image_data[${sel_im}]
+        
+            # 🔥 Solo ejecuta si hubo nuevo click
+            if ${add_measure} > ${last_add}[]
+        
+                new_row = JIVECore.Analyze.stats_table(img)
+        
+                append!(${results_table}, new_row)
+                
+                ${last_add}[] = ${add_measure}   # 👈 marca como procesado
+        
+            end
+        
+        end
+        ${results_table}
+        end
+        
+        `);
 
 }),
 
@@ -132,6 +143,13 @@ createMenuItem("Measure with Threshold", async function () {
 
     const sel_im = getVarName("measure_thr_im");
     const threshold = getVarName("measure_thr_method");
+    const add_measure_thr = getVarName("add_measure");
+    const results_table_thr = getVarName("results_table_thr");
+    const last_add_thr = getVarName("last_add_thr");
+
+    ////////////////////////////////////
+    // UI
+    ////////////////////////////////////
 
     createMDCellWithUI(
         "Measure with Threshold",
@@ -139,34 +157,49 @@ createMenuItem("Measure with Threshold", async function () {
 Select image:
 $(@bind ${sel_im} Select([nothing, image_keys...]))
 
-Threshold:
+Threshold method:
 $(@bind ${threshold} Select(["auto","otsu"]))
+
+Add measurement:
+$(@bind ${add_measure_thr} PlutoUI.CounterButton("Add measurement"))
+
         `
     );
 
     await resolveAfterTimeout(300);
+    createCellWithCode(`
+        ${last_add_thr} = Ref(0)
+        global ${results_table_thr} = JIVECore.Analyze.DataFrame()
+        nothing
+        `);
+
+    await resolveAfterTimeout(300);
+
+    ////////////////////////////////////
+    // LOGIC CELL
+    ////////////////////////////////////
 
     createCellWithCode(`
 
-let
+    let
+    if !isnothing(${sel_im})
 
-global results_table
+        img = image_data[${sel_im}]
 
-if !isnothing(${sel_im})
+                if ${add_measure_thr} > ${last_add_thr}[]
+                new_row = JIVECore.Analyze.stats_table(
+                    img;
+                    threshold=${threshold}
+                    )
+                    append!(${results_table_thr}, new_row)
+                    ${last_add_thr}[] = ${add_measure_thr}
+                end
 
-    img = image_data[${sel_im}]
-
-    if isnothing(results_table[])
-        results_table[] = JIVECore.Analyze.stats_table(img, threshold=${threshold})
-    else
-        results_table[] = JIVECore.Analyze.stats_table(img, threshold=${threshold}, df=results_table[])
     end
 
-end
+    ${results_table_thr}
 
-results_table[]
-
-end
+    end
 
 `);
 

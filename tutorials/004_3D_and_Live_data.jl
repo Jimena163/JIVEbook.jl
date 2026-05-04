@@ -235,35 +235,6 @@ $(@bind rgb_contrast1776338015615 PlutoUI.CheckBox(default=true))
             
 
 
-# ╔═╡ 29afa4eb-ddee-473d-a99d-3ced01eb12f8
-
-blocks = Any[]
-
-push!(blocks, md"""
-Channel 1:
-$(@bind rgb_r1776338015615 Select([:r,:g,:b,:m,:y,:c,:gray]))
-""")
-
-if nC ≥ 2
-    push!(blocks, md"Channel 2: $(@bind rgb_g1776338015615 Select([:r,:g,:b,:m,:y,:c,:gray]))")
-end
-
-if nC ≥ 3
-    push!(blocks, md"Channel 3: $(@bind rgb_b1776338015615 Select([:r,:g,:b,:m,:y,:c,:gray]))")
-end
-
-if nC ≥ 4
-    push!(blocks, md"Channel 4: $(@bind rgb_c41776338015615 Select([:r,:g,:b,:m,:y,:c,:gray]))")
-end
-
-if nC ≥ 5
-    push!(blocks, md"Channel 5: $(@bind rgb_c51776338015615  Select([:r,:g,:b,:m,:y,:c,:gray]))")
-end
-
-blocks
-            
-
-
 # ╔═╡ 9ce63d72-6d67-4c57-9a46-317e0303bec8
 
         channels = Symbol[]
@@ -480,6 +451,56 @@ JIVECore.Files.saveVideo("a.avi",track3_ch1)
 # ╔═╡ c73f9a99-8436-45a6-a847-3e278a08ed50
 
 
+# ╔═╡ 692d9b01-66ae-401c-be81-a0e8456befe2
+# ╠═╡ disabled = true
+#=╠═╡
+
+blocks = Any[]
+
+channel_sym = [:r,:g,:b,:m,:y,:c,:gray]
+channel_names = [rgb_r1776338015615, rgb_g1776338015615, rgb_b1776338015615]
+
+for n in nC
+push!(blocks, md"""
+Channel 1:
+$(@bind channel_names[n] Select(channel_sym, default=channel_sym[n]))
+""")
+
+end
+blocks
+            
+
+  ╠═╡ =#
+
+# ╔═╡ 29afa4eb-ddee-473d-a99d-3ced01eb12f8
+
+blocks = Any[]
+
+push!(blocks, md"""
+Channel 1:
+$(@bind rgb_r1776338015615 Select([:r,:g,:b,:m,:y,:c,:gray]))
+""")
+
+if nC ≥ 2
+    push!(blocks, md"Channel 2: $(@bind rgb_g1776338015615 Select([:r,:g,:b,:m,:y,:c,:gray]))")
+end
+
+if nC ≥ 3
+    push!(blocks, md"Channel 3: $(@bind rgb_b1776338015615 Select([:r,:g,:b,:m,:y,:c,:gray]))")
+end
+
+if nC ≥ 4
+    push!(blocks, md"Channel 4: $(@bind rgb_c41776338015615 Select([:r,:g,:b,:m,:y,:c,:gray]))")
+end
+
+if nC ≥ 5
+    push!(blocks, md"Channel 5: $(@bind rgb_c51776338015615  Select([:r,:g,:b,:m,:y,:c,:gray]))")
+end
+
+blocks
+            
+
+
 # ╔═╡ Cell order:
 # ╟─adb575a6-d444-47e8-9b68-dad4a2d3e73a
 # ╟─98698242-f26e-4d25-81c1-408488424e91
@@ -494,7 +515,8 @@ JIVECore.Files.saveVideo("a.avi",track3_ch1)
 # ╟─f8bcaa39-3c5f-43dd-bb9d-56c3c2f85075
 # ╟─f5b23cc2-9bad-4cc8-94bc-ac908ad1a2da
 # ╟─f588618a-a69d-4a92-b1e4-56f96f240325
-# ╟─29afa4eb-ddee-473d-a99d-3ced01eb12f8
+# ╠═29afa4eb-ddee-473d-a99d-3ced01eb12f8
+# ╠═692d9b01-66ae-401c-be81-a0e8456befe2
 # ╟─9ce63d72-6d67-4c57-9a46-317e0303bec8
 # ╟─58c77138-85a3-4268-97bc-ede8be4353c6
 # ╟─42f5e8df-404d-46b2-b896-dccddc66d2af
