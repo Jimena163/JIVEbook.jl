@@ -379,10 +379,14 @@ $(@bind ${sel_im} Select([nothing, image_keys...]))
 
 }),
 
+////////////////////////
+// SHOW DISTRIBUTION
+////////////////////////
+
 createMenuItem("Show Distribution", async function () {
 
-    const vis_df = getVarName("vis_df");
-    const vis_col = getVarName("vis_col");
+    const vis_label = getVarName("vis_label");
+    const vis_stat = getVarName("vis_stat");
     const vis_fit = getVarName("vis_fit");
 
     //////////////////////////////
@@ -392,8 +396,19 @@ createMenuItem("Show Distribution", async function () {
     createMDCellWithUI(
         "Show Distribution",
         `
-Select DataFrame:
-$(@bind ${vis_df} Select([nothing, df_keys...]))
+Select label image:
+$(@bind ${vis_label} Select([nothing, image_keys...]))
+
+Statistic:
+$(@bind ${vis_stat} Select([
+"count",
+"area",
+"perimeter",
+"circularity",
+"eccentricity",
+"major_axis",
+"minor_axis"
+]))
 
 Fit distribution:
 $(@bind ${vis_fit} Select([nothing, "Normal", "LogNormal", "Gamma"]))
@@ -403,32 +418,28 @@ $(@bind ${vis_fit} Select([nothing, "Normal", "LogNormal", "Gamma"]))
     await resolveAfterTimeout(300);
 
     //////////////////////////////
-    // Column selector
-    //////////////////////////////
-
-    createCellWithCode(`
-if !isnothing(${vis_df})
-
-    df_local = ${vis_df}
-
-    md"""
-Column:
-$(@bind ${vis_col} Select(names(df_local)))
-"""
-
-end
-`);
-
-    await resolveAfterTimeout(300);
-
-    //////////////////////////////
     // Plot
     //////////////////////////////
 
     createCellWithCode(`
-if !isnothing(${vis_df}) && !isnothing(${vis_col})
+if !isnothing(${vis_label})
 
-    df_local = ${vis_df}
+    labels = image_data[${vis_label}]
+
+    # calcular SOLO la estadística seleccionada
+    stat_sym = Symbol(${vis_stat})
+
+    df = JIVECore.Analyze.region_stats(
+        labels;
+        stats=[stat_sym]
+    )
+
+    # eliminar fondo (label 0)
+		if size(df,1) > 1
+    		df = df[2:end, :]
+	    end
+
+    vals = collect(skipmissing(df[!, stat_sym]))
 
     fit_map = Dict(
         "Normal" => Normal,
@@ -439,9 +450,100 @@ if !isnothing(${vis_df}) && !isnothing(${vis_col})
     fit_dist = haskey(fit_map, ${vis_fit}) ? fit_map[${vis_fit}] : nothing
 
     JIVECore.Visualize.showDist(
-        df_local.${vis_col};
+        vals;
         fit_dist=fit_dist
     )
+
+end
+`);
+
+}),
+
+////////////////////////
+// SHOW BAR PLOT
+////////////////////////
+
+createMenuItem("Show Bar Plot", async function () {
+
+    const bar_im = getVarName("bar_im");
+    const bar_stat = getVarName("bar_stat");
+    const bar_range = getVarName("bar_range");
+    const bar_highlight_max = getVarName("bar_highlight_max");
+    const bar_highlight_idx = getVarName("bar_highlight_idx");
+
+    //////////////////////////////
+    // UI
+    //////////////////////////////
+
+    createMDCellWithUI(
+        "Show Bar Plot",
+        `
+Select label image:
+$(@bind ${bar_im} Select([nothing, image_keys...]))
+
+Statistic:
+$(@bind ${bar_stat} Select([
+"count",
+"area",
+"perimeter",
+"major_axis",
+"minor_axis"
+]))
+
+Highlight maximum:
+$(@bind ${bar_highlight_max} PlutoUI.CheckBox())
+
+Highlight index (optional):
+$(@bind ${bar_highlight_idx} NumberField(0:1000, default=0))
+
+Range:
+$(@bind ${bar_range} PlutoUI.RangeSlider(1:1:100))
+        `
+    );
+
+    await resolveAfterTimeout(300);
+
+    //////////////////////////////
+    // Plot
+    //////////////////////////////
+
+    createCellWithCode(`
+if !isnothing(${bar_im})
+
+    labels_bar = image_data[${bar_im}]
+
+    stat_sym_bar = Symbol(${bar_stat})
+
+    # Compute selected statistic
+    df_bar = JIVECore.Analyze.region_stats(
+        labels_bar;
+        stats=[stat_sym_bar]
+    )
+
+    # Remove background
+    if size(df_bar,1) > 1
+        df_bar = df_bar[2:end, :]
+    end
+
+    vals_bar = collect(skipmissing(df_bar[!, stat_sym_bar]))
+
+    # Safe range
+    r0 = ${bar_range}[1]
+    r1 = min(${bar_range}[end], length(vals_bar))
+
+    if r0 <= r1
+
+        JIVECore.Visualize.showBar(
+            vals_bar,
+            r0:r1;
+            highlight_max=${bar_highlight_max},
+            highlight_idx=${bar_highlight_idx},
+            highlight_color=:red3,
+            xlabel=string(stat_sym_bar),
+            title="Distribution of " * string(stat_sym_bar)
+        )
+
+    end
 
 end
 `);
